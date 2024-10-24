@@ -1,0 +1,80 @@
+import socket
+import requests
+import nmap
+import sys
+
+# Function to scan open ports on the target
+def scan_open_ports(target):
+    print(f"\n[*] Scanning open ports on {target}...\n")
+    scanner = nmap.PortScanner()
+    try:
+        scanner.scan(target, '1-1024')  # Scanning ports 1 to 1024
+        for host in scanner.all_hosts():
+            print(f"Host: {host}")
+            for proto in scanner[host].all_protocols():
+                ports = scanner[host][proto].keys()
+                for port in ports:
+                    state = scanner[host][proto][port]['state']
+                    print(f"Port {port}: {state}")
+    except Exception as e:
+        print(f"Error in port scanning: {e}")
+
+# Function to check if a target host is online
+def ping_host(host):
+    print(f"\n[*] Pinging host {host}...")
+    try:
+        # Resolve the hostname to IP address
+        ip = socket.gethostbyname(host)
+        print(f"[+] Host {host} resolved to {ip}.")
+        return True
+    except socket.gaierror:
+        print(f"[-] Could not resolve host: {host}.")
+        return False
+
+# Function to check for outdated server versions and HTTP security headers
+def check_website_security(url):
+    try:
+        print(f"\n[*] Checking security for {url}...\n")
+        response = requests.get(url)
+        headers = response.headers
+        
+        # Checking for missing security headers
+        security_headers = {
+            'X-Frame-Options': "Prevent clickjacking attacks",
+            'X-XSS-Protection': "Enable cross-site scripting (XSS) protection",
+            'Strict-Transport-Security': "Ensure HTTPS is used",
+            'Content-Security-Policy': "Prevent injection of malicious content"
+        }
+        
+        for header, desc in security_headers.items():
+            if header in headers:
+                print(f"[+] {header} is set ({desc}).")
+            else:
+                print(f"[-] {header} is missing ({desc}).")
+        
+        # Check for server software version (e.g., Apache, Nginx)
+        if 'Server' in headers:
+            print(f"[+] Detected server software: {headers['Server']}")
+        else:
+            print("[!] Could not determine server software version.")
+        
+    except requests.exceptions.RequestException as e:
+        print(f"[!] Error fetching website information: {e}")
+
+# Main function to run the vulnerability scan
+def vulnerability_scan(target, scan_ports=False):
+    if ping_host(target):
+        if scan_ports:
+            scan_open_ports(target)
+        if target.startswith("http://") or target.startswith("https://"):
+            check_website_security(target)
+    else:
+        print("[!] Target is unreachable.")
+
+if __name__ == "__main__":
+    # Simple user input to scan the target
+    print("=== Simple Vulnerability Scanning Tool ===")
+    target = input("Enter the IP address or website URL to scan: ").strip()
+    scan_ports = input("Do you want to scan open ports? (yes/no): ").strip().lower() == 'yes'
+    
+    vulnerability_scan(target, scan_ports)
